@@ -20,7 +20,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.19.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.10.0
 	github.com/Azure/go-autorest/autorest v0.11.20
-	github.com/BurntSushi/toml v0.3.1
+	github.com/BurntSushi/toml v1.1.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/VividCortex/mysqlerr v0.0.0-20170204212430-6c6b55f8796f
 	github.com/aws/aws-sdk-go v1.40.37
@@ -92,7 +92,7 @@ require (
 	github.com/ua-parser/uap-go v0.0.0-20211112212520-00c877edfe0f
 	github.com/uber/jaeger-client-go v2.29.1+incompatible
 	github.com/unknwon/com v1.0.1
-	github.com/urfave/cli/v2 v2.3.0
+	github.com/urfave/cli/v2 v2.11.1
 	github.com/vectordotdev/go-datemath v0.1.1-0.20211214152759-c03a58217724
 	github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78
 	github.com/xorcare/pointer v1.1.0
@@ -120,7 +120,7 @@ require (
 	gopkg.in/mail.v2 v2.3.1
 	gopkg.in/square/go-jose.v2 v2.5.1
 	gopkg.in/yaml.v2 v2.4.0
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+	gopkg.in/yaml.v3 v3.0.1
 	xorm.io/builder v0.3.6
 	xorm.io/core v0.7.3
 	xorm.io/xorm v0.8.2
@@ -152,7 +152,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/cockroachdb/apd/v2 v2.0.2 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/deepmap/oapi-codegen v1.8.2 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -225,13 +225,12 @@ require (
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20201118171849-f6a6b3f636fc // indirect
 	github.com/rainycape/unidecode v0.0.0-20150907023854-cb7f23ec59be // indirect
 	github.com/rs/cors v1.8.0 // indirect
-	github.com/russross/blackfriday/v2 v2.0.1 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/segmentio/encoding v0.3.2
 	github.com/sercand/kuberesolver v2.4.0+incompatible // indirect
 	github.com/sergi/go-diff v1.0.0 // indirect
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect
-	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
@@ -263,6 +262,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.8 // indirect
 	github.com/segmentio/asm v1.1.1 // indirect
+	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 )
 
 // Use fork of crewjam/saml with fixes for some issues until changes get merged into upstream
