@@ -185,7 +185,7 @@ require (
 	github.com/google/flatbuffers v2.0.0+incompatible // indirect
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/grafana/grafana-google-sdk-go v0.0.0-20211104130251-b190293eaf58
+	github.com/grafana/grafana-google-sdk-go v0.1.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.0 // indirect
