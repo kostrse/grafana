@@ -1,12 +1,15 @@
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 
-import { Field, LogLevel, LogRowModel, MutableDataFrame, createTheme } from '@grafana/data';
+import { Field, LogLevel, LogRowModel, MutableDataFrame, createTheme, FieldType } from '@grafana/data';
 
 import { LogDetails, Props } from './LogDetails';
 import { createLogRow } from './__mocks__/logRow';
+import { getLogRowStyles } from './getLogRowStyles';
 
 const setup = (propOverrides?: Partial<Props>, rowOverrides?: Partial<LogRowModel>) => {
+  const theme = createTheme();
+  const styles = getLogRowStyles(theme);
   const props: Props = {
     displayedFields: [],
     showDuplicates: false,
@@ -17,7 +20,8 @@ const setup = (propOverrides?: Partial<Props>, rowOverrides?: Partial<LogRowMode
     onClickFilterOutLabel: () => {},
     onClickShowField: () => {},
     onClickHideField: () => {},
-    theme: createTheme(),
+    theme,
+    styles,
     ...(propOverrides || {}),
   };
 
@@ -42,6 +46,28 @@ describe('LogDetails', () => {
       expect(screen.getByRole('cell', { name: 'label1' })).toBeInTheDocument();
       expect(screen.getByRole('cell', { name: 'key2' })).toBeInTheDocument();
       expect(screen.getByRole('cell', { name: 'label2' })).toBeInTheDocument();
+    });
+    it('should render filter controls when the callbacks are provided', () => {
+      setup(
+        {
+          onClickFilterLabel: () => {},
+          onClickFilterOutLabel: () => {},
+        },
+        { labels: { key1: 'label1' } }
+      );
+      expect(screen.getByLabelText('Filter for value')).toBeInTheDocument();
+      expect(screen.getByLabelText('Filter out value')).toBeInTheDocument();
+    });
+    it('should not render filter controls when the callbacks are not provided', () => {
+      setup(
+        {
+          onClickFilterLabel: undefined,
+          onClickFilterOutLabel: undefined,
+        },
+        { labels: { key1: 'label1' } }
+      );
+      expect(screen.queryByLabelText('Filter for value')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Filter out value')).not.toBeInTheDocument();
     });
   });
   describe('when log row has error', () => {
@@ -78,6 +104,7 @@ describe('LogDetails', () => {
     const entry = 'traceId=1234 msg="some message"';
     const dataFrame = new MutableDataFrame({
       fields: [
+        { name: 'timestamp', config: {}, type: FieldType.time, values: [1] },
         { name: 'entry', values: [entry] },
         // As we have traceId in message already this will shadow it.
         {
@@ -94,7 +121,7 @@ describe('LogDetails', () => {
           if (field.config && field.config.links) {
             return field.config.links.map((link) => {
               return {
-                href: link.url.replace('${__value.text}', field.values.get(rowIndex)),
+                href: link.url.replace('${__value.text}', field.values[rowIndex]),
                 title: link.title,
                 target: '_blank',
                 origin: field,

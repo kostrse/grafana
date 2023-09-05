@@ -1,15 +1,22 @@
 import { lastValueFrom, of } from 'rxjs';
 import { TemplateSrvStub } from 'test/specs/helpers';
 
-import { ScopedVars } from '@grafana/data';
-import { FetchResponse, setBackendSrv } from '@grafana/runtime';
+import { ScopedVars } from '@grafana/data/src';
+import { FetchResponse } from '@grafana/runtime';
+import config from 'app/core/config';
 import { backendSrv } from 'app/core/services/backend_srv'; // will use the version in __mocks__
 
 import { BROWSER_MODE_DISABLED_MESSAGE } from '../constants';
 import InfluxDatasource from '../datasource';
+import { InfluxQuery, InfluxVersion } from '../types';
 
 //@ts-ignore
 const templateSrv = new TemplateSrvStub();
+
+jest.mock('@grafana/runtime', () => ({
+  ...(jest.requireActual('@grafana/runtime') as unknown as object),
+  getBackendSrv: () => backendSrv,
+}));
 
 describe('InfluxDataSource', () => {
   const ctx: any = {
@@ -23,23 +30,25 @@ describe('InfluxDataSource', () => {
     ctx.instanceSettings.url = '/api/datasources/proxy/1';
     ctx.instanceSettings.access = 'proxy';
     ctx.ds = new InfluxDatasource(ctx.instanceSettings, templateSrv);
-    setBackendSrv(backendSrv);
   });
 
   describe('When issuing metricFindQuery', () => {
     const query = 'SELECT max(value) FROM measurement WHERE $timeFilter';
-    const queryOptions: any = {
+    const queryOptions = {
       range: {
         from: '2018-01-01T00:00:00Z',
         to: '2018-01-02T00:00:00Z',
       },
     };
-    let requestQuery: any, requestMethod: any, requestData: any, response: any;
+    let requestQuery: any;
+    let requestMethod: string | undefined;
+    let requestData: any;
+    let response: any;
 
     beforeEach(async () => {
-      fetchMock.mockImplementation((req: any) => {
+      fetchMock.mockImplementation((req) => {
         requestMethod = req.method;
-        requestQuery = req.params.q;
+        requestQuery = req.params?.q;
         requestData = req.data;
         return of({
           data: {
@@ -111,6 +120,8 @@ describe('InfluxDataSource', () => {
         } as FetchResponse);
       });
 
+      ctx.ds.retentionPolicies = [''];
+
       try {
         await lastValueFrom(ctx.ds.query(queryOptions));
       } catch (err) {
@@ -152,11 +163,14 @@ describe('InfluxDataSource', () => {
 
     describe('When issuing metricFindQuery', () => {
       const query = 'SELECT max(value) FROM measurement';
-      const queryOptions: any = {};
-      let requestMethod: any, requestQueryParameter: any, queryEncoded: any, requestQuery: any;
+      const queryOptions = {};
+      let requestMethod: string | undefined;
+      let requestQueryParameter: Record<string, any> | undefined;
+      let queryEncoded: any;
+      let requestQuery: any;
 
       beforeEach(async () => {
-        fetchMock.mockImplementation((req: any) => {
+        fetchMock.mockImplementation((req) => {
           requestMethod = req.method;
           requestQueryParameter = req.params;
           requestQuery = req.data;
@@ -192,6 +206,17 @@ describe('InfluxDataSource', () => {
       it('should not have q as a query parameter', () => {
         expect(requestQueryParameter).not.toHaveProperty('q');
       });
+    });
+  });
+
+  // Some functions are required by the parent datasource class to provide functionality
+  // such as ad-hoc filters, which requires the definition of the getTagKeys, and getTagValues
+  describe('Datasource contract', () => {
+    it('has function called getTagKeys', () => {
+      expect(Object.getOwnPropertyNames(Object.getPrototypeOf(ctx.ds))).toContain('getTagKeys');
+    });
+    it('has function called getTagValues', () => {
+      expect(Object.getOwnPropertyNames(Object.getPrototypeOf(ctx.ds))).toContain('getTagValues');
     });
   });
 
@@ -261,7 +286,7 @@ describe('InfluxDataSource', () => {
       adhocFilters,
     };
 
-    function influxChecks(query: any) {
+    function influxChecks(query: InfluxQuery) {
       expect(templateSrv.replace).toBeCalledTimes(10);
       expect(query.alias).toBe(text);
       expect(query.measurement).toBe(textWithFormatRegex);
@@ -272,12 +297,12 @@ describe('InfluxDataSource', () => {
       expect(query.tags![0].value).toBe(textWithFormatRegex);
       expect(query.groupBy![0].params![0]).toBe(textWithFormatRegex);
       expect(query.select![0][0].params![0]).toBe(textWithFormatRegex);
-      expect(query.adhocFilters[0].key).toBe(adhocFilters[0].key);
+      expect(query.adhocFilters?.[0].key).toBe(adhocFilters[0].key);
     }
 
     describe('when interpolating query variables for dashboard->explore', () => {
       it('should interpolate all variables with Flux mode', () => {
-        ds.isFlux = true;
+        ds.version = InfluxVersion.Flux;
         const fluxQuery = {
           refId: 'x',
           query: '$interpolationVar,$interpolationVar2',
@@ -291,7 +316,7 @@ describe('InfluxDataSource', () => {
       });
 
       it('should interpolate all variables with InfluxQL mode', () => {
-        ds.isFlux = false;
+        ds.version = InfluxVersion.InfluxQL;
         const queries = ds.interpolateVariablesInQueries([influxQuery], {
           interpolationVar: { text: text, value: text },
           interpolationVar2: { text: text2, value: text2 },
@@ -302,7 +327,7 @@ describe('InfluxDataSource', () => {
 
     describe('when interpolating template variables', () => {
       it('should apply all template variables with Flux mode', () => {
-        ds.isFlux = true;
+        ds.version = InfluxVersion.Flux;
         const fluxQuery = {
           refId: 'x',
           query: '$interpolationVar',
@@ -318,8 +343,9 @@ describe('InfluxDataSource', () => {
       });
 
       it('should apply all template variables with InfluxQL mode', () => {
-        ds.isFlux = false;
+        ds.version = ds.version = InfluxVersion.InfluxQL;
         ds.access = 'proxy';
+        config.featureToggles.influxdbBackendMigration = true;
         const query = ds.applyTemplateVariables(influxQuery, {
           interpolationVar: { text: text, value: text },
           interpolationVar2: { text: 'interpolationText2', value: 'interpolationText2' },
@@ -328,12 +354,16 @@ describe('InfluxDataSource', () => {
       });
 
       it('should apply all scopedVars to tags', () => {
-        ds.isFlux = false;
+        ds.version = InfluxVersion.InfluxQL;
         ds.access = 'proxy';
+        config.featureToggles.influxdbBackendMigration = true;
         const query = ds.applyTemplateVariables(influxQuery, {
           interpolationVar: { text: text, value: text },
           interpolationVar2: { text: 'interpolationText2', value: 'interpolationText2' },
         });
+        if (!query.tags?.length) {
+          throw new Error('Tags are not defined');
+        }
         const value = query.tags[0].value;
         const scopedVars = 'interpolationText|interpolationText2';
         expect(value).toBe(scopedVars);

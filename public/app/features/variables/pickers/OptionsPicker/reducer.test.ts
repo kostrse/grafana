@@ -461,7 +461,7 @@ describe('optionsPickerReducer', () => {
         });
     });
 
-    it('should toggle all values to false when $_all is selected', () => {
+    it('should toggle each individual value to true when $_all is selected and mark ALL as selected, not supporting empty values', () => {
       const { initialState } = getVariableTestContext({
         options: [
           { text: 'All', value: '$__all', selected: true },
@@ -479,14 +479,17 @@ describe('optionsPickerReducer', () => {
           ...initialState,
           options: [
             { text: 'All', value: '$__all', selected: false },
-            { text: 'A', value: 'A', selected: false },
-            { text: 'B', value: 'B', selected: false },
+            { text: 'A', value: 'A', selected: true },
+            { text: 'B', value: 'B', selected: true },
           ],
-          selectedValues: [],
+          selectedValues: [
+            { text: 'A', value: 'A', selected: true },
+            { text: 'B', value: 'B', selected: true },
+          ],
         });
     });
 
-    it('should toggle all values to false when a option is selected', () => {
+    it('should toggle to ALL value when one regular option is selected, as empty values are not accepted', () => {
       const { initialState } = getVariableTestContext({
         options: [
           { text: 'All', value: '$__all', selected: false },
@@ -503,11 +506,11 @@ describe('optionsPickerReducer', () => {
         .thenStateShouldEqual({
           ...initialState,
           options: [
-            { text: 'All', value: '$__all', selected: false },
+            { text: 'All', value: '$__all', selected: true },
             { text: 'A', value: 'A', selected: false },
             { text: 'B', value: 'B', selected: false },
           ],
-          selectedValues: [],
+          selectedValues: [{ text: 'All', value: '$__all', selected: true }],
         });
     });
   });
@@ -535,7 +538,7 @@ describe('optionsPickerReducer', () => {
           ],
           selectedValues: [{ text: 'All', value: '$__all', selected: true }],
           queryValue: 'A',
-          highlightIndex: -1,
+          highlightIndex: 0,
         });
     });
 
@@ -559,7 +562,7 @@ describe('optionsPickerReducer', () => {
             options: [{ text: 'All', value: '$__all', selected: true }],
             selectedValues: [{ text: 'All', value: '$__all', selected: true }],
             queryValue: 'A',
-            highlightIndex: -1,
+            highlightIndex: 0,
           });
       });
     });
@@ -583,7 +586,7 @@ describe('optionsPickerReducer', () => {
             options: [{ text: 'option:1337', value: 'option:1337', selected: false }],
             selectedValues: [],
             queryValue: 'option:1337',
-            highlightIndex: -1,
+            highlightIndex: 0,
           });
       });
     });
@@ -635,7 +638,7 @@ describe('optionsPickerReducer', () => {
           ],
           selectedValues: [{ text: 'B', value: 'B', selected: true }],
           queryValue: 'A',
-          highlightIndex: -1,
+          highlightIndex: 0,
         })
         .whenActionIsDispatched(updateSearchQuery(''))
         .thenStateShouldEqual({
@@ -646,7 +649,7 @@ describe('optionsPickerReducer', () => {
           ],
           selectedValues: [{ text: 'B', value: 'B', selected: true }],
           queryValue: '',
-          highlightIndex: -1,
+          highlightIndex: 0,
         })
         .whenActionIsDispatched(updateOptionsAndFilter(options))
         .thenStateShouldEqual({
@@ -658,7 +661,7 @@ describe('optionsPickerReducer', () => {
           ],
           selectedValues: [{ text: 'B', value: 'B', selected: true }],
           queryValue: '',
-          highlightIndex: -1,
+          highlightIndex: 0,
         });
     });
   });
@@ -766,7 +769,7 @@ describe('optionsPickerReducer', () => {
           options: [{ text: 'option:11256', value: 'option:11256', selected: false }],
           selectedValues: [],
           queryValue: 'option:11256',
-          highlightIndex: -1,
+          highlightIndex: 0,
         });
     });
   });

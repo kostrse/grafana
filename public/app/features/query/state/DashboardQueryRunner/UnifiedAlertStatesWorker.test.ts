@@ -1,9 +1,11 @@
 import { lastValueFrom } from 'rxjs';
 
 import { AlertState, getDefaultTimeRange, TimeRange } from '@grafana/data';
+import { config } from '@grafana/runtime';
 import { backendSrv } from 'app/core/services/backend_srv';
 import { disableRBAC, enableRBAC, grantUserPermissions } from 'app/features/alerting/unified/mocks';
 import { Annotation } from 'app/features/alerting/unified/utils/constants';
+import { createDashboardModelFixture } from 'app/features/dashboard/state/__fixtures__/dashboardFixtures';
 import { AccessControlAction } from 'app/types/accessControl';
 import { PromAlertingRuleState, PromRuleDTO, PromRulesResponse, PromRuleType } from 'app/types/unified-alerting-dto';
 
@@ -14,12 +16,18 @@ import { UnifiedAlertStatesWorker } from './UnifiedAlertStatesWorker';
 import { DashboardQueryRunnerOptions } from './types';
 
 jest.mock('@grafana/runtime', () => ({
-  ...(jest.requireActual('@grafana/runtime') as unknown as object),
+  ...jest.requireActual('@grafana/runtime'),
   getBackendSrv: () => backendSrv,
 }));
 
 function getDefaultOptions(): DashboardQueryRunnerOptions {
-  const dashboard: any = { id: 'an id', uid: 'a uid', meta: { publicDashboardAccessToken: '' } };
+  const dashboard = createDashboardModelFixture(
+    {
+      id: 12345,
+      uid: 'a uid',
+    },
+    {}
+  );
   const range = getDefaultTimeRange();
 
   return { dashboard, range };
@@ -37,6 +45,10 @@ function getTestContext() {
 describe('UnifiedAlertStatesWorker', () => {
   const worker = new UnifiedAlertStatesWorker();
 
+  beforeEach(() => {
+    config.publicDashboardAccessToken = '';
+  });
+
   beforeAll(() => {
     disableRBAC();
   });
@@ -52,7 +64,7 @@ describe('UnifiedAlertStatesWorker', () => {
   describe('when canWork is called on a public dashboard view', () => {
     it('then it should return false', () => {
       const options = getDefaultOptions();
-      options.dashboard.meta.publicDashboardAccessToken = 'abc123';
+      config.publicDashboardAccessToken = 'abc123';
 
       expect(worker.canWork(options)).toBe(false);
     });
@@ -60,7 +72,7 @@ describe('UnifiedAlertStatesWorker', () => {
 
   describe('when canWork is called with no dashboard id', () => {
     it('then it should return false', () => {
-      const dashboard: any = {};
+      const dashboard = createDashboardModelFixture({});
       const options = { ...getDefaultOptions(), dashboard };
 
       expect(worker.canWork(options)).toBe(false);
@@ -80,7 +92,7 @@ describe('UnifiedAlertStatesWorker', () => {
   describe('when run is called with incorrect props', () => {
     it('then it should return the correct results', async () => {
       const { getMock, options } = getTestContext();
-      const dashboard: any = {};
+      const dashboard = createDashboardModelFixture({});
 
       await expect(worker.work({ ...options, dashboard })).toEmitValuesWith((received) => {
         expect(received).toHaveLength(1);
@@ -168,8 +180,8 @@ describe('UnifiedAlertStatesWorker', () => {
         const results = received[0];
         expect(results).toEqual({
           alertStates: [
-            { id: 0, state: AlertState.Alerting, dashboardId: 'an id', panelId: 1 },
-            { id: 1, state: AlertState.Pending, dashboardId: 'an id', panelId: 2 },
+            { id: 0, state: AlertState.Alerting, dashboardId: 12345, panelId: 1 },
+            { id: 1, state: AlertState.Pending, dashboardId: 12345, panelId: 2 },
           ],
           annotations: [],
         });
@@ -179,7 +191,7 @@ describe('UnifiedAlertStatesWorker', () => {
       expect(getMock).toHaveBeenCalledWith(
         '/api/prometheus/grafana/api/v1/rules',
         { dashboard_uid: 'a uid' },
-        'dashboard-query-runner-unified-alert-states-an id'
+        'dashboard-query-runner-unified-alert-states-12345'
       );
     });
   });

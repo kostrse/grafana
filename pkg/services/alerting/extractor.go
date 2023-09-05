@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/services/datasources"
-	"github.com/grafana/grafana/pkg/services/datasources/permissions"
+	"github.com/grafana/grafana/pkg/services/datasources/guardian"
 )
 
 type DashAlertExtractor interface {
@@ -20,18 +20,18 @@ type DashAlertExtractor interface {
 
 // DashAlertExtractorService extracts alerts from the dashboard json.
 type DashAlertExtractorService struct {
-	datasourcePermissionsService permissions.DatasourcePermissionsService
-	datasourceService            datasources.DataSourceService
-	alertStore                   AlertStore
-	log                          log.Logger
+	dsGuardian        guardian.DatasourceGuardianProvider
+	datasourceService datasources.DataSourceService
+	alertStore        AlertStore
+	log               log.Logger
 }
 
-func ProvideDashAlertExtractorService(datasourcePermissionsService permissions.DatasourcePermissionsService, datasourceService datasources.DataSourceService, store AlertStore) *DashAlertExtractorService {
+func ProvideDashAlertExtractorService(dsGuardian guardian.DatasourceGuardianProvider, datasourceService datasources.DataSourceService, store AlertStore) *DashAlertExtractorService {
 	return &DashAlertExtractorService{
-		datasourcePermissionsService: datasourcePermissionsService,
-		datasourceService:            datasourceService,
-		alertStore:                   store,
-		log:                          log.New("alerting.extractor"),
+		dsGuardian:        dsGuardian,
+		datasourceService: datasourceService,
+		alertStore:        store,
+		log:               log.New("alerting.extractor"),
 	}
 }
 
@@ -39,32 +39,34 @@ func (e *DashAlertExtractorService) lookupQueryDataSource(ctx context.Context, p
 	dsName := ""
 	dsUid := ""
 
-	datasource, ok := panelQuery.CheckGet("datasource")
+	ds, ok := panelQuery.CheckGet("datasource")
 
 	if !ok {
-		datasource = panel.Get("datasource")
+		ds = panel.Get("datasource")
 	}
 
-	if name, err := datasource.String(); err == nil {
+	if name, err := ds.String(); err == nil {
 		dsName = name
-	} else if uid, ok := datasource.CheckGet("uid"); ok {
+	} else if uid, ok := ds.CheckGet("uid"); ok {
 		dsUid = uid.MustString()
 	}
 
 	if dsName == "" && dsUid == "" {
 		query := &datasources.GetDefaultDataSourceQuery{OrgID: orgID}
-		if err := e.datasourceService.GetDefaultDataSource(ctx, query); err != nil {
+		dataSource, err := e.datasourceService.GetDefaultDataSource(ctx, query)
+		if err != nil {
 			return nil, err
 		}
-		return query.Result, nil
+		return dataSource, nil
 	}
 
 	query := &datasources.GetDataSourceQuery{Name: dsName, UID: dsUid, OrgID: orgID}
-	if err := e.datasourceService.GetDataSource(ctx, query); err != nil {
+	dataSource, err := e.datasourceService.GetDataSource(ctx, query)
+	if err != nil {
 		return nil, err
 	}
 
-	return query.Result, nil
+	return dataSource, nil
 }
 
 func findPanelQueryByRefID(panel *simplejson.Json, refID string) *simplejson.Json {
@@ -208,16 +210,10 @@ func (e *DashAlertExtractorService) getAlertFromPanels(ctx context.Context, json
 				return nil, err
 			}
 
-			dsFilterQuery := datasources.DatasourcesPermissionFilterQuery{
-				User:        dashAlertInfo.User,
-				Datasources: []*datasources.DataSource{datasource},
-			}
-
-			if err := e.datasourcePermissionsService.FilterDatasourcesBasedOnQueryPermissions(ctx, &dsFilterQuery); err != nil {
-				if !errors.Is(err, permissions.ErrNotImplemented) {
-					return nil, err
-				}
-			} else if len(dsFilterQuery.Result) == 0 {
+			canQuery, err := e.dsGuardian.New(dashAlertInfo.OrgID, dashAlertInfo.User, *datasource).CanQuery(datasource.ID)
+			if err != nil {
+				return nil, err
+			} else if !canQuery {
 				return nil, datasources.ErrDataSourceAccessDenied
 			}
 

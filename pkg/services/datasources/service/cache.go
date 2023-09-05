@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/grafana/pkg/infra/localcache"
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/services/datasources"
+	"github.com/grafana/grafana/pkg/services/datasources/guardian"
 	"github.com/grafana/grafana/pkg/services/user"
 )
 
@@ -16,12 +17,13 @@ const (
 	DefaultCacheTTL = 5 * time.Second
 )
 
-func ProvideCacheService(cacheService *localcache.CacheService, sqlStore db.DB) *CacheServiceImpl {
+func ProvideCacheService(cacheService *localcache.CacheService, sqlStore db.DB, dsGuardian guardian.DatasourceGuardianProvider) *CacheServiceImpl {
 	return &CacheServiceImpl{
 		logger:       log.New("datasources"),
 		cacheTTL:     DefaultCacheTTL,
 		CacheService: cacheService,
 		SQLStore:     sqlStore,
+		dsGuardian:   dsGuardian,
 	}
 }
 
@@ -30,6 +32,7 @@ type CacheServiceImpl struct {
 	cacheTTL     time.Duration
 	CacheService *localcache.CacheService
 	SQLStore     db.DB
+	dsGuardian   guardian.DatasourceGuardianProvider
 }
 
 func (dc *CacheServiceImpl) GetDatasource(
@@ -44,6 +47,9 @@ func (dc *CacheServiceImpl) GetDatasource(
 		if cached, found := dc.CacheService.Get(cacheKey); found {
 			ds := cached.(*datasources.DataSource)
 			if ds.OrgID == user.OrgID {
+				if err := dc.canQuery(user, ds); err != nil {
+					return nil, err
+				}
 				return ds, nil
 			}
 		}
@@ -53,17 +59,20 @@ func (dc *CacheServiceImpl) GetDatasource(
 
 	query := &datasources.GetDataSourceQuery{ID: datasourceID, OrgID: user.OrgID}
 	ss := SqlStore{db: dc.SQLStore, logger: dc.logger}
-	err := ss.GetDataSource(ctx, query)
+	ds, err := ss.GetDataSource(ctx, query)
 	if err != nil {
 		return nil, err
 	}
-
-	ds := query.Result
 
 	if ds.UID != "" {
 		dc.CacheService.Set(uidKey(ds.OrgID, ds.UID), ds, time.Second*5)
 	}
 	dc.CacheService.Set(cacheKey, ds, dc.cacheTTL)
+
+	if err = dc.canQuery(user, ds); err != nil {
+		return nil, err
+	}
+
 	return ds, nil
 }
 
@@ -85,6 +94,9 @@ func (dc *CacheServiceImpl) GetDatasourceByUID(
 		if cached, found := dc.CacheService.Get(uidCacheKey); found {
 			ds := cached.(*datasources.DataSource)
 			if ds.OrgID == user.OrgID {
+				if err := dc.canQuery(user, ds); err != nil {
+					return nil, err
+				}
 				return ds, nil
 			}
 		}
@@ -93,15 +105,18 @@ func (dc *CacheServiceImpl) GetDatasourceByUID(
 	dc.logger.FromContext(ctx).Debug("Querying for data source via SQL store", "uid", datasourceUID, "orgId", user.OrgID)
 	query := &datasources.GetDataSourceQuery{UID: datasourceUID, OrgID: user.OrgID}
 	ss := SqlStore{db: dc.SQLStore, logger: dc.logger}
-	err := ss.GetDataSource(ctx, query)
+	ds, err := ss.GetDataSource(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	ds := query.Result
-
 	dc.CacheService.Set(uidCacheKey, ds, dc.cacheTTL)
 	dc.CacheService.Set(idKey(ds.ID), ds, dc.cacheTTL)
+
+	if err = dc.canQuery(user, ds); err != nil {
+		return nil, err
+	}
+
 	return ds, nil
 }
 
@@ -111,4 +126,15 @@ func idKey(id int64) string {
 
 func uidKey(orgID int64, uid string) string {
 	return fmt.Sprintf("ds-orgid-uid-%d-%s", orgID, uid)
+}
+
+func (dc *CacheServiceImpl) canQuery(user *user.SignedInUser, ds *datasources.DataSource) error {
+	guardian := dc.dsGuardian.New(user.OrgID, user, *ds)
+	if canQuery, err := guardian.CanQuery(ds.ID); err != nil || !canQuery {
+		if err != nil {
+			return err
+		}
+		return datasources.ErrDataSourceAccessDenied
+	}
+	return nil
 }

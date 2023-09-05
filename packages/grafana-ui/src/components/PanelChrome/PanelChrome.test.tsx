@@ -1,5 +1,6 @@
-import { screen, render } from '@testing-library/react';
+import { screen, render, fireEvent } from '@testing-library/react';
 import React from 'react';
+import { useToggle } from 'react-use';
 
 import { LoadingState } from '@grafana/data';
 
@@ -16,6 +17,27 @@ const setup = (propOverrides?: Partial<PanelChromeProps>) => {
 
   Object.assign(props, propOverrides);
   return render(<PanelChrome {...props} />);
+};
+
+const setupWithToggleCollapsed = (propOverrides?: Partial<PanelChromeProps>) => {
+  const props: PanelChromeProps = {
+    width: 100,
+    height: 100,
+    children: (innerWidth, innerHeight) => {
+      return <div style={{ width: innerWidth, height: innerHeight, color: 'pink' }}>Panel&apos;s Content</div>;
+    },
+    collapsible: true,
+  };
+
+  Object.assign(props, propOverrides);
+
+  const ControlledCollapseComponent = () => {
+    const [collapsed, toggleCollapsed] = useToggle(false);
+
+    return <PanelChrome {...props} collapsed={collapsed} onToggleCollapse={toggleCollapsed} />;
+  };
+
+  return render(<ControlledCollapseComponent />);
 };
 
 it('renders an empty panel with required props only', () => {
@@ -60,11 +82,6 @@ it('renders panel with a header if prop leftItems', () => {
   expect(screen.getByTestId('header-container')).toBeInTheDocument();
 });
 
-it('renders panel with hover header if no title, no leftItems, hoverHeader is undefined but menu is present', () => {
-  setup({ title: '', leftItems: undefined, hoverHeader: undefined, menu: <div>Menu</div> });
-  expect(screen.getByTestId('hover-header-container')).toBeInTheDocument();
-});
-
 it('renders panel with a hovering header if prop hoverHeader is true', () => {
   setup({ title: 'Test Panel Header', hoverHeader: true });
 
@@ -85,12 +102,6 @@ it('renders panel with a header with icons in place if prop titleItems', () => {
   });
 
   expect(screen.getByTestId('title-items-container')).toBeInTheDocument();
-});
-
-it('renders panel with a hover header if prop menu is present and hoverHeader is false', () => {
-  setup({ menu: <div> Menu </div>, hoverHeader: false });
-
-  expect(screen.getByTestId('hover-header-container')).toBeInTheDocument();
 });
 
 it('renders panel with a show-on-hover menu icon if prop menu', () => {
@@ -134,4 +145,38 @@ it('renders streaming indicator in the panel header if loadingState is streaming
   setup({ loadingState: LoadingState.Streaming });
 
   expect(screen.getByTestId('panel-streaming')).toBeInTheDocument();
+});
+
+it('collapses the controlled panel when user clicks on the chevron or the title', () => {
+  setupWithToggleCollapsed({ title: 'Default title' });
+
+  expect(screen.getByText("Panel's Content")).toBeInTheDocument();
+
+  const button = screen.getByText('Default title');
+  // collapse button should have same aria-controls as the panel's content
+  expect(button.getAttribute('aria-controls')).toBe(button.parentElement?.parentElement?.nextElementSibling?.id);
+
+  fireEvent.click(button);
+
+  expect(screen.queryByText("Panel's Content")).not.toBeInTheDocument();
+  // aria-controls should be removed when panel is collapsed
+  expect(button).not.toHaveAttribute('aria-controlls');
+  expect(button.parentElement?.parentElement?.nextElementSibling?.id).toBe(undefined);
+});
+
+it('collapses the uncontrolled panel when user clicks on the chevron or the title', () => {
+  setup({ title: 'Default title', collapsible: true });
+
+  expect(screen.getByText("Panel's Content")).toBeInTheDocument();
+
+  const button = screen.getByText('Default title');
+  // collapse button should have same aria-controls as the panel's content
+  expect(button.getAttribute('aria-controls')).toBe(button.parentElement?.parentElement?.nextElementSibling?.id);
+
+  fireEvent.click(button);
+
+  expect(screen.queryByText("Panel's Content")).not.toBeInTheDocument();
+  // aria-controls should be removed when panel is collapsed
+  expect(button).not.toHaveAttribute('aria-controlls');
+  expect(button.parentElement?.parentElement?.nextElementSibling?.id).toBe(undefined);
 });

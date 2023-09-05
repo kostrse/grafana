@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/loganalytics"
 	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/types"
 )
 
@@ -75,7 +75,7 @@ func TestBuildingAzureResourceGraphQueries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			queries, err := datasource.buildQueries(logger, tt.queryModel, types.DatasourceInfo{})
 			tt.Err(t, err)
-			if diff := cmp.Diff(tt.azureResourceGraphQueries, queries, cmpopts.IgnoreUnexported(simplejson.Json{})); diff != "" {
+			if diff := cmp.Diff(tt.azureResourceGraphQueries, queries, cmpopts.IgnoreUnexported(struct{}{})); diff != "" {
 				t.Errorf("Result mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -97,7 +97,6 @@ func TestAzureResourceGraphCreateRequest(t *testing.T) {
 			expectedURL: "http://ds/",
 			expectedHeaders: http.Header{
 				"Content-Type": []string{"application/json"},
-				"User-Agent":   []string{"Grafana/"},
 			},
 			Err: require.NoError,
 		},
@@ -124,7 +123,7 @@ func TestAddConfigData(t *testing.T) {
 	frame := data.Frame{
 		Fields: []*data.Field{&field},
 	}
-	frameWithLink := AddConfigLinks(frame, "http://ds")
+	frameWithLink := loganalytics.AddConfigLinks(frame, "http://ds", nil)
 	expectedFrameWithLink := data.Frame{
 		Fields: []*data.Field{
 			{

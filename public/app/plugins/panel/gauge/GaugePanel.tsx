@@ -1,15 +1,15 @@
 import React, { PureComponent } from 'react';
 
-import { FieldDisplay, getFieldDisplayValues, PanelProps } from '@grafana/data';
+import { FieldDisplay, getDisplayProcessor, getFieldDisplayValues, PanelProps } from '@grafana/data';
 import { DataLinksContextMenu, Gauge, VizRepeater, VizRepeaterRenderValueProps } from '@grafana/ui';
 import { DataLinksContextMenuApi } from '@grafana/ui/src/components/DataLinks/DataLinksContextMenu';
 import { config } from 'app/core/config';
 
 import { clearNameForSingleSeries } from '../bargauge/BarGaugePanel';
 
-import { PanelOptions } from './panelcfg.gen';
+import { Options } from './panelcfg.gen';
 
-export class GaugePanel extends PureComponent<PanelProps<PanelOptions>> {
+export class GaugePanel extends PureComponent<PanelProps<Options>> {
   renderComponent = (
     valueProps: VizRepeaterRenderValueProps<FieldDisplay>,
     menuProps: DataLinksContextMenuApi
@@ -31,6 +31,7 @@ export class GaugePanel extends PureComponent<PanelProps<PanelOptions>> {
         theme={config.theme2}
         onClick={openMenu}
         className={targetClassName}
+        orientation={options.orientation}
       />
     );
   };
@@ -54,6 +55,19 @@ export class GaugePanel extends PureComponent<PanelProps<PanelOptions>> {
 
   getValues = (): FieldDisplay[] => {
     const { data, options, replaceVariables, fieldConfig, timeZone } = this.props;
+
+    for (let frame of data.series) {
+      for (let field of frame.fields) {
+        // Set the Min/Max value automatically for percent and percentunit
+        if (field.config.unit === 'percent' || field.config.unit === 'percentunit') {
+          const min = field.config.min ?? 0;
+          const max = field.config.max ?? (field.config.unit === 'percent' ? 100 : 1);
+          field.state = field.state ?? {};
+          field.state.range = { min, max, delta: max - min };
+          field.display = getDisplayProcessor({ field, theme: config.theme2 });
+        }
+      }
+    }
     return getFieldDisplayValues({
       fieldConfig,
       reduceOptions: options.reduceOptions,
@@ -77,6 +91,8 @@ export class GaugePanel extends PureComponent<PanelProps<PanelOptions>> {
         autoGrid={true}
         renderCounter={renderCounter}
         orientation={options.orientation}
+        minVizHeight={options.minVizHeight}
+        minVizWidth={options.minVizWidth}
       />
     );
   }

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -34,18 +35,23 @@ const (
 )
 
 var (
-	errOAuthGenPKCE     = errutil.NewBase(errutil.StatusInternal, "auth.oauth.pkce.internal", errutil.WithPublicMessage("An internal error occurred"))
-	errOAuthMissingPKCE = errutil.NewBase(errutil.StatusBadRequest, "auth.oauth.pkce.missing", errutil.WithPublicMessage("Missing required pkce cookie"))
+	errOAuthGenPKCE     = errutil.Internal("auth.oauth.pkce.internal", errutil.WithPublicMessage("An internal error occurred"))
+	errOAuthMissingPKCE = errutil.BadRequest("auth.oauth.pkce.missing", errutil.WithPublicMessage("Missing required pkce cookie"))
 
-	errOAuthGenState     = errutil.NewBase(errutil.StatusInternal, "auth.oauth.state.internal", errutil.WithPublicMessage("An internal error occurred"))
-	errOAuthMissingState = errutil.NewBase(errutil.StatusBadRequest, "auth.oauth.state.missing", errutil.WithPublicMessage("Missing saved oauth state"))
-	errOAuthInvalidState = errutil.NewBase(errutil.StatusUnauthorized, "auth.oauth.state.invalid", errutil.WithPublicMessage("Provided state does not match stored state"))
+	errOAuthGenState     = errutil.Internal("auth.oauth.state.internal", errutil.WithPublicMessage("An internal error occurred"))
+	errOAuthMissingState = errutil.BadRequest("auth.oauth.state.missing", errutil.WithPublicMessage("Missing saved oauth state"))
+	errOAuthInvalidState = errutil.Unauthorized("auth.oauth.state.invalid", errutil.WithPublicMessage("Provided state does not match stored state"))
 
-	errOAuthTokenExchange = errutil.NewBase(errutil.StatusInternal, "auth.oauth.token.exchange", errutil.WithPublicMessage("Failed to get token from provider"))
+	errOAuthTokenExchange = errutil.Internal("auth.oauth.token.exchange", errutil.WithPublicMessage("Failed to get token from provider"))
+	errOAuthUserInfo      = errutil.Internal("auth.oauth.userinfo.error")
 
-	errOAuthMissingRequiredEmail = errutil.NewBase(errutil.StatusUnauthorized, "auth.oauth.email.missing")
-	errOAuthEmailNotAllowed      = errutil.NewBase(errutil.StatusUnauthorized, "auth.oauth.email.not-allowed")
+	errOAuthMissingRequiredEmail = errutil.Unauthorized("auth.oauth.email.missing", errutil.WithPublicMessage("Provider didn't return an email address"))
+	errOAuthEmailNotAllowed      = errutil.Unauthorized("auth.oauth.email.not-allowed", errutil.WithPublicMessage("Required email domain not fulfilled"))
 )
+
+func fromSocialErr(err *social.Error) error {
+	return errutil.Unauthorized("auth.oauth.userinfo.failed", errutil.WithPublicMessage(err.Error())).Errorf("%w", err)
+}
 
 var _ authn.RedirectClient = new(OAuth)
 
@@ -106,13 +112,17 @@ func (c *OAuth) Authenticate(ctx context.Context, r *authn.Request) (*authn.Iden
 	// exchange auth code to a valid token
 	token, err := c.connector.Exchange(clientCtx, r.HTTPRequest.URL.Query().Get("code"), opts...)
 	if err != nil {
-		return nil, err
+		return nil, errOAuthTokenExchange.Errorf("failed to exchange code to token: %w", err)
 	}
 	token.TokenType = "Bearer"
 
-	userInfo, err := c.connector.UserInfo(c.connector.Client(clientCtx, token), token)
+	userInfo, err := c.connector.UserInfo(ctx, c.connector.Client(clientCtx, token), token)
 	if err != nil {
-		return nil, errOAuthTokenExchange.Errorf("failed to exchange code to token: %w", err)
+		var sErr *social.Error
+		if errors.As(err, &sErr) {
+			return nil, fromSocialErr(sErr)
+		}
+		return nil, errOAuthUserInfo.Errorf("failed to get user info: %w", err)
 	}
 
 	if userInfo.Email == "" {
@@ -123,22 +133,37 @@ func (c *OAuth) Authenticate(ctx context.Context, r *authn.Request) (*authn.Iden
 		return nil, errOAuthEmailNotAllowed.Errorf("provided email is not allowed")
 	}
 
+	orgRoles, isGrafanaAdmin, _ := getRoles(c.cfg, func() (org.RoleType, *bool, error) {
+		if c.cfg.OAuthSkipOrgRoleUpdateSync {
+			return "", nil, nil
+		}
+		return userInfo.Role, userInfo.IsGrafanaAdmin, nil
+	})
+
+	lookupParams := login.UserLookupParams{}
+	if c.cfg.OAuthAllowInsecureEmailLookup {
+		lookupParams.Email = &userInfo.Email
+	}
+
 	return &authn.Identity{
-		Login:          userInfo.Login,
-		Name:           userInfo.Name,
-		Email:          userInfo.Email,
-		IsGrafanaAdmin: userInfo.IsGrafanaAdmin,
-		AuthModule:     c.moduleName,
-		AuthID:         userInfo.Id,
-		Groups:         userInfo.Groups,
-		OAuthToken:     token,
-		OrgRoles:       getOAuthOrgRole(userInfo, c.cfg),
+		Login:           userInfo.Login,
+		Name:            userInfo.Name,
+		Email:           userInfo.Email,
+		IsGrafanaAdmin:  isGrafanaAdmin,
+		AuthenticatedBy: c.moduleName,
+		AuthID:          userInfo.Id,
+		Groups:          userInfo.Groups,
+		OAuthToken:      token,
+		OrgRoles:        orgRoles,
 		ClientParams: authn.ClientParams{
 			SyncUser:        true,
-			SyncTeamMembers: true,
+			SyncTeams:       true,
 			FetchSyncedUser: true,
+			SyncPermissions: true,
 			AllowSignUp:     c.connector.IsSignupAllowed(),
-			LookUpParams:    login.UserLookupParams{Email: &userInfo.Email},
+			// skip org role flag is checked and handled in the connector. For now we can skip the hook if no roles are passed
+			SyncOrgRoles: len(orgRoles) > 0,
+			LookUpParams: lookupParams,
 		},
 	}, nil
 }
@@ -216,23 +241,4 @@ func genOAuthState(secret, seed string) (string, string, error) {
 func hashOAuthState(state, secret, seed string) string {
 	hashBytes := sha256.Sum256([]byte(state + secret + seed))
 	return hex.EncodeToString(hashBytes[:])
-}
-
-func getOAuthOrgRole(userInfo *social.BasicUserInfo, cfg *setting.Cfg) map[int64]org.RoleType {
-	orgRoles := make(map[int64]org.RoleType, 0)
-	if cfg.OAuthSkipOrgRoleUpdateSync {
-		return orgRoles
-	}
-
-	if userInfo.Role == "" || !userInfo.Role.IsValid() {
-		return orgRoles
-	}
-
-	orgID := int64(1)
-	if cfg.AutoAssignOrg && cfg.AutoAssignOrgId > 0 {
-		orgID = int64(cfg.AutoAssignOrgId)
-	}
-
-	orgRoles[orgID] = userInfo.Role
-	return orgRoles
 }

@@ -4,9 +4,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/grafana/grafana/pkg/services/auth/identity"
 	"github.com/grafana/grafana/pkg/services/org"
 	"github.com/grafana/grafana/pkg/services/quota"
-	"github.com/grafana/grafana/pkg/services/user"
 )
 
 var (
@@ -40,8 +40,6 @@ type AddCommand struct {
 	Key              string       `json:"-"`
 	SecondsToLive    int64        `json:"secondsToLive"`
 	ServiceAccountID *int64       `json:"-"`
-
-	Result *APIKey `json:"-"`
 }
 
 type DeleteCommand struct {
@@ -52,18 +50,15 @@ type DeleteCommand struct {
 type GetApiKeysQuery struct {
 	OrgID          int64
 	IncludeExpired bool
-	User           *user.SignedInUser
-	Result         []*APIKey
+	User           identity.Requester
 }
 type GetByNameQuery struct {
 	KeyName string
 	OrgID   int64
-	Result  *APIKey
 }
 
 type GetByIDQuery struct {
 	ApiKeyID int64
-	Result   *APIKey
 }
 
 const (

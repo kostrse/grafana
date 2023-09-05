@@ -4,6 +4,7 @@ import {
   DataTransformerConfig,
   DataSourceInstanceSettings,
   DataSourceRef,
+  DataQuery,
 } from '@grafana/data';
 import { DataSourceSrv } from '@grafana/runtime';
 
@@ -35,8 +36,8 @@ describe('getAlertingValidationMessage', () => {
         getList(): DataSourceInstanceSettings[] {
           return [];
         },
-        getInstanceSettings: (() => {}) as any,
-        reload: () => jest.fn(),
+        getInstanceSettings: jest.fn(),
+        reload: jest.fn(),
       };
       const targets: ElasticsearchQuery[] = [
         { refId: 'A', query: '@hostname:$hostname' },
@@ -75,15 +76,15 @@ describe('getAlertingValidationMessage', () => {
 
           return Promise.resolve(alertingDatasource);
         },
-        getInstanceSettings: (() => {}) as any,
+        getInstanceSettings: jest.fn(),
         getList(): DataSourceInstanceSettings[] {
           return [];
         },
-        reload: () => jest.fn(),
+        reload: jest.fn(),
       };
-      const targets: any[] = [
-        { refId: 'A', query: 'some query', datasource: 'alertingDatasource' },
-        { refId: 'B', query: 'some query', datasource: 'datasource' },
+      const targets: DataQuery[] = [
+        { refId: 'A', datasource: { type: 'alertingDatasource' } },
+        { refId: 'B', datasource: { type: 'datasource' } },
       ];
       const transformations: DataTransformerConfig[] = [];
 
@@ -107,11 +108,11 @@ describe('getAlertingValidationMessage', () => {
         get: (ref: DataSourceRef) => {
           return getMock(ref.uid);
         },
-        getInstanceSettings: (() => {}) as any,
+        getInstanceSettings: jest.fn(),
         getList(): DataSourceInstanceSettings[] {
           return [];
         },
-        reload: () => jest.fn(),
+        reload: jest.fn(),
       };
       const targets: ElasticsearchQuery[] = [
         { refId: 'A', query: '@hostname:$hostname' },
@@ -142,11 +143,11 @@ describe('getAlertingValidationMessage', () => {
         get: (ref: DataSourceRef) => {
           return getMock(ref.uid);
         },
-        getInstanceSettings: (() => {}) as any,
+        getInstanceSettings: jest.fn(),
         getList(): DataSourceInstanceSettings[] {
           return [];
         },
-        reload: () => jest.fn(),
+        reload: jest.fn(),
       };
       const targets: ElasticsearchQuery[] = [
         { refId: 'A', query: '@hostname:hostname' },
@@ -176,11 +177,11 @@ describe('getAlertingValidationMessage', () => {
         get: (ref: DataSourceRef) => {
           return getMock(ref.uid);
         },
-        getInstanceSettings: (() => {}) as any,
+        getInstanceSettings: jest.fn(),
         getList(): DataSourceInstanceSettings[] {
           return [];
         },
-        reload: () => jest.fn(),
+        reload: jest.fn(),
       };
       const targets: ElasticsearchQuery[] = [
         { refId: 'A', query: '@hostname:hostname' },

@@ -305,10 +305,8 @@
         "type": "heatmap"
       }
     ],
-    "revision": 1,
     "schemaVersion": 37,
-    "style": "dark",
-    "tags": [],
+      "tags": [],
     "templating": {
       "list": []
     },
@@ -323,4 +321,4 @@
     "version": 3,
     "weekStart": ""
   }
-  
+

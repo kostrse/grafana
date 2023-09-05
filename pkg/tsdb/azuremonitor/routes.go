@@ -14,6 +14,7 @@ const (
 	azureMonitor       = "Azure Monitor"
 	azureLogAnalytics  = "Azure Log Analytics"
 	azureResourceGraph = "Azure Resource Graph"
+	azureTraces        = "Azure Traces"
 	azurePortal        = "Azure Portal"
 )
 
@@ -73,6 +74,7 @@ var (
 			azureMonitor:       azManagement,
 			azureLogAnalytics:  azLogAnalytics,
 			azureResourceGraph: azManagement,
+			azureTraces:        azLogAnalytics,
 			azurePortal:        azPortal,
 		},
 		azsettings.AzureUSGovernment: {

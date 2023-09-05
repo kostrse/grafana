@@ -4,8 +4,10 @@ import { QueryEditorProps, toOption } from '@grafana/data';
 import { EditorRows } from '@grafana/experimental';
 
 import CloudMonitoringDatasource from '../datasource';
-import { CloudMonitoringQuery, QueryType, SLOQuery, CloudMonitoringOptions } from '../types';
+import { CloudMonitoringQuery, PromQLQuery, QueryType, SLOQuery } from '../types/query';
+import { CloudMonitoringOptions } from '../types/types';
 
+import { PromQLQueryEditor } from './PromQLEditor';
 import { QueryHeader } from './QueryHeader';
 import { defaultQuery as defaultSLOQuery } from './SLOQueryEditor';
 
@@ -20,15 +22,26 @@ export const QueryEditor = (props: Props) => {
   const query = useMemo(() => {
     if (!migrated) {
       setMigrated(true);
-      return datasource.migrateQuery(oldQ);
+      const migratedQuery = datasource.migrateQuery(oldQ);
+      // Update the query once the migrations have been completed.
+      onChange({ ...migratedQuery });
+      return migratedQuery;
     }
     return oldQ;
-  }, [oldQ, datasource, migrated]);
+  }, [oldQ, datasource, onChange, migrated]);
 
   const sloQuery = { ...defaultSLOQuery(datasource), ...query.sloQuery };
   const onSLOQueryChange = (q: SLOQuery) => {
     onChange({ ...query, sloQuery: q });
     onRunQuery();
+  };
+
+  const promQLQuery = {
+    ...{ projectName: datasource.getDefaultProject(), expr: '', step: '10s' },
+    ...query.promQLQuery,
+  };
+  const onPromQLQueryChange = (q: PromQLQuery) => {
+    onChange({ ...query, promQLQuery: q });
   };
 
   const meta = props.data?.series.length ? props.data?.series[0].meta : {};
@@ -41,7 +54,7 @@ export const QueryEditor = (props: Props) => {
 
   // Use a known query type
   useEffect(() => {
-    if (!Object.values(QueryType).includes(query.queryType)) {
+    if (!query.queryType || !Object.values(QueryType).includes(query.queryType)) {
       onChange({ ...query, queryType: QueryType.TIME_SERIES_LIST });
     }
   });
@@ -50,6 +63,18 @@ export const QueryEditor = (props: Props) => {
   return (
     <EditorRows>
       <QueryHeader query={query} onChange={onChange} onRunQuery={onRunQuery} />
+
+      {queryType === QueryType.PROMQL && (
+        <PromQLQueryEditor
+          refId={query.refId}
+          variableOptionGroup={variableOptionGroup}
+          onChange={onPromQLQueryChange}
+          onRunQuery={onRunQuery}
+          datasource={datasource}
+          query={promQLQuery}
+        />
+      )}
+
       {queryType !== QueryType.SLO && (
         <MetricQueryEditor
           refId={query.refId}

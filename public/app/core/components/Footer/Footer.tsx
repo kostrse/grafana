@@ -48,17 +48,19 @@ export function getVersionMeta(version: string) {
   };
 }
 
-export let getVersionLinks = (): FooterLink[] => {
+export function getVersionLinks(hideEdition?: boolean): FooterLink[] {
   const { buildInfo, licenseInfo } = config;
   const links: FooterLink[] = [];
   const stateInfo = licenseInfo.stateInfo ? ` (${licenseInfo.stateInfo})` : '';
 
-  links.push({
-    target: '_blank',
-    id: 'version',
-    text: `${buildInfo.edition}${stateInfo}`,
-    url: licenseInfo.licenseUrl,
-  });
+  if (!hideEdition) {
+    links.push({
+      target: '_blank',
+      id: 'license',
+      text: `${buildInfo.edition}${stateInfo}`,
+      url: licenseInfo.licenseUrl,
+    });
+  }
 
   if (buildInfo.hideVersion) {
     return links;
@@ -84,23 +86,20 @@ export let getVersionLinks = (): FooterLink[] => {
   }
 
   return links;
-};
+}
 
 export function setFooterLinksFn(fn: typeof getFooterLinks) {
   getFooterLinks = fn;
 }
 
-export function setVersionLinkFn(fn: typeof getFooterLinks) {
-  getVersionLinks = fn;
-}
-
 export interface Props {
   /** Link overrides to show specific links in the UI */
   customLinks?: FooterLink[] | null;
+  hideEdition?: boolean;
 }
 
-export const Footer = React.memo(({ customLinks }: Props) => {
-  const links = (customLinks || getFooterLinks()).concat(getVersionLinks());
+export const Footer = React.memo(({ customLinks, hideEdition }: Props) => {
+  const links = (customLinks || getFooterLinks()).concat(getVersionLinks(hideEdition));
 
   return (
     <footer className="footer">

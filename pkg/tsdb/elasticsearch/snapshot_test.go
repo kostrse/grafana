@@ -20,6 +20,10 @@ import (
 // - the elastic-request json
 // - the dataframe result
 
+// If you need to adjust the snapshots, go to Line 172 and change
+// `experimental.CheckGoldenJSONResponse(t, "testdata_response", goldenFileName, &dataResCopy, false)` to `experimental.CheckGoldenJSONResponse(t, "testdata_response", goldenFileName, &dataResCopy, true)`
+// then run the test once to generate the new snapshots.
+
 // a regex that matches the request-snapshot-filenames, and extracts the name of the test
 var requestRe = regexp.MustCompile(`^(.*)\.request\.line\d+\.json$`)
 
@@ -131,6 +135,12 @@ func TestResponseSnapshots(t *testing.T) {
 		{name: "simple metric test", path: "metric_simple"},
 		{name: "complex metric test", path: "metric_complex"},
 		{name: "multi metric test", path: "metric_multi"},
+		{name: "metric avg test", path: "metric_avg"},
+		{name: "metric percentiles test", path: "metric_percentiles"},
+		{name: "metric top_metrics test", path: "metric_top_metrics"},
+		{name: "metric extended_stats test", path: "metric_extended_stats"},
+		{name: "raw data test", path: "raw_data"},
+		{name: "logs test", path: "logs"},
 	}
 
 	snapshotCount := findResponseSnapshotCounts(t, "testdata_response")
@@ -159,7 +169,7 @@ func TestResponseSnapshots(t *testing.T) {
 			require.Len(t, result.response.Responses, expectedResponseCount)
 
 			for refId, dataRes := range result.response.Responses {
-				goldenFileName := fmt.Sprintf("%v.%v.golden", test.path, refId)
+				goldenFileName := fmt.Sprintf("%v.%v.golden", test.path, strings.ToLower(refId))
 				// we make a copy of the variable to avoid this linter-warning:
 				// "G601: Implicit memory aliasing in for loop."
 				dataResCopy := dataRes

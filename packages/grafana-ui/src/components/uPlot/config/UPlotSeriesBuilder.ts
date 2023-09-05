@@ -239,7 +239,7 @@ let builders: PathBuilders | undefined = undefined;
 function mapDrawStyleToPathBuilder(
   style: GraphDrawStyle,
   lineInterpolation?: LineInterpolation,
-  barAlignment = 0,
+  barAlignment = BarAlignment.Center,
   barWidthFactor = 0.6,
   barMaxWidth = 200
 ): Series.PathBuilder {
@@ -250,8 +250,8 @@ function mapDrawStyleToPathBuilder(
     builders = {
       linear: pathBuilders.linear!(),
       smooth: pathBuilders.spline!(),
-      stepBefore: pathBuilders.stepped!({ align: -1, extend: true }),
-      stepAfter: pathBuilders.stepped!({ align: 1, extend: true }),
+      stepBefore: pathBuilders.stepped!({ align: -1 }),
+      stepAfter: pathBuilders.stepped!({ align: 1 }),
     };
   }
 
@@ -262,7 +262,7 @@ function mapDrawStyleToPathBuilder(
     if (!builders[barsCfgKey]) {
       builders[barsCfgKey] = pathBuilders.bars!({
         size: [barWidthFactor, barMaxWidth],
-        align: barAlignment as BarAlignment,
+        align: barAlignment,
       });
     }
 

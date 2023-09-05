@@ -4,10 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/grafana/grafana/pkg/api/dtos"
 	"github.com/grafana/grafana/pkg/api/response"
 	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
-	"github.com/grafana/grafana/pkg/services/dashboards"
 	. "github.com/grafana/grafana/pkg/services/publicdashboards/models"
 	"github.com/grafana/grafana/pkg/services/publicdashboards/validation"
 	"github.com/grafana/grafana/pkg/web"
@@ -21,32 +19,10 @@ func (api *Api) ViewPublicDashboard(c *contextmodel.ReqContext) response.Respons
 		return response.Err(ErrInvalidAccessToken.Errorf("ViewPublicDashboard: invalid access token"))
 	}
 
-	pubdash, dash, err := api.PublicDashboardService.FindPublicDashboardAndDashboardByAccessToken(
-		c.Req.Context(),
-		accessToken,
-	)
+	dto, err := api.PublicDashboardService.GetPublicDashboardForView(c.Req.Context(), accessToken)
 	if err != nil {
 		return response.Err(err)
 	}
-
-	meta := dtos.DashboardMeta{
-		Slug:                       dash.Slug,
-		Type:                       dashboards.DashTypeDB,
-		CanStar:                    false,
-		CanSave:                    false,
-		CanEdit:                    false,
-		CanAdmin:                   false,
-		CanDelete:                  false,
-		Created:                    dash.Created,
-		Updated:                    dash.Updated,
-		Version:                    dash.Version,
-		IsFolder:                   false,
-		FolderId:                   dash.FolderID,
-		PublicDashboardAccessToken: pubdash.AccessToken,
-	}
-	dash.Data.Get("timepicker").Set("hidden", !pubdash.TimeSelectionEnabled)
-
-	dto := dtos.DashboardFullWithMeta{Meta: meta, Dashboard: dash.Data}
 
 	return response.JSON(http.StatusOK, dto)
 }
@@ -69,7 +45,7 @@ func (api *Api) QueryPublicDashboard(c *contextmodel.ReqContext) response.Respon
 		return response.Err(ErrBadRequest.Errorf("QueryPublicDashboard: error parsing request: %v", err))
 	}
 
-	resp, err := api.PublicDashboardService.GetQueryDataResponse(c.Req.Context(), c.SkipCache, reqDTO, panelId, accessToken)
+	resp, err := api.PublicDashboardService.GetQueryDataResponse(c.Req.Context(), c.SkipDSCache, reqDTO, panelId, accessToken)
 	if err != nil {
 		return response.Err(err)
 	}

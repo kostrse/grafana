@@ -1,6 +1,6 @@
 import { getPanelPlugin } from '@grafana/data/test/__mocks__/pluginMocks';
 
-import { setContextSrv } from '../../../../core/services/context_srv';
+import { ContextSrv, setContextSrv } from '../../../../core/services/context_srv';
 import { PanelModel } from '../../state/PanelModel';
 import { createDashboardModelFixture, createPanelJSONFixture } from '../../state/__fixtures__/dashboardFixtures';
 
@@ -32,7 +32,7 @@ function getDefaultDashboardModel() {
 }
 
 function getTestContext() {
-  const contextSrv: any = { isSignedIn: true, isEditor: true };
+  const contextSrv = { isSignedIn: true, isEditor: true } as ContextSrv;
   setContextSrv(contextSrv);
   const dash = getDefaultDashboardModel();
   const original = dash.getSaveModelClone();
@@ -132,14 +132,14 @@ describe('DashboardPrompt', () => {
       });
     });
 
-    it('Should ignore panel schema migrations', () => {
+    it('Should ignore panel schema migrations', async () => {
       const { original, dash } = getTestContext();
       const plugin = getPanelPlugin({}).setMigrationHandler((panel) => {
         delete (panel as any).legend;
         return { option1: 'Aasd' };
       });
 
-      dash.panels[0].pluginLoaded(plugin);
+      await dash.panels[0].pluginLoaded(plugin);
       expect(hasChanges(dash, original)).toBe(false);
     });
 

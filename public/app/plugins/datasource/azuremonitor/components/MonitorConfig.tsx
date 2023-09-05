@@ -1,4 +1,4 @@
-import React, { FunctionComponent, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import { SelectableValue } from '@grafana/data';
 import { config } from '@grafana/runtime';
@@ -21,7 +21,7 @@ export interface Props {
   getSubscriptions: () => Promise<Array<SelectableValue<string>>>;
 }
 
-export const MonitorConfig: FunctionComponent<Props> = (props: Props) => {
+export const MonitorConfig = (props: Props) => {
   const { updateOptions, getSubscriptions, options } = props;
   const [subscriptions, setSubscriptions] = useState<Array<SelectableValue<string>>>([]);
   const credentials = useMemo(() => getCredentials(props.options), [props.options]);
@@ -43,7 +43,6 @@ export const MonitorConfig: FunctionComponent<Props> = (props: Props) => {
 
   return (
     <>
-      <h3 className="page-heading">Authentication</h3>
       <AzureCredentialsForm
         managedIdentityEnabled={config.azure.managedIdentityEnabled}
         credentials={credentials}
